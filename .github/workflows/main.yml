@@ -1,4 +1,4 @@
-name: Unity Android CI (License Skip)
+name: Unity Android CI (Personal License Hardcoded)
 
 on:
   push:
@@ -13,54 +13,52 @@ jobs:
     container:
       image: unityci/editor:ubuntu-2022.3.59f1-android-3.1.0
 
+    env:
+      UNITY_EMAIL: "zainali.fastian1234@gmail.com"      # hardcoded for test
+      UNITY_PASSWORD: "Zadaniphone@123"             # hardcoded for test
+      UNITY_SERIAL: "F4-7ESQ-KRGX-Z7Y5-HZCG-6BP6" # hardcoded for test
+      ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_ALIAS_PASS: ${{ secrets.ANDROID_KEY_ALIAS_PASS }}
+
     steps:
-      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Decode Android Keystore
       - name: Decode Android Keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > release.keystore
 
-      # Step 3: Set Android Keystore environment variables
-      - name: Set Android Keystore Env Vars
+      - name: Activate Unity License
         run: |
-          echo "ANDROID_KEYSTORE_PASS=${{ secrets.ANDROID_KEYSTORE_PASS }}" >> $GITHUB_ENV
-          echo "ANDROID_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> $GITHUB_ENV
-          echo "ANDROID_KEY_ALIAS_PASS=${{ secrets.ANDROID_KEY_ALIAS_PASS }}" >> $GITHUB_ENV
+          unity-editor -batchmode -nographics -quit \
+            -username "$UNITY_EMAIL" \
+            -password "$UNITY_PASSWORD" \
+            -serial "$UNITY_SERIAL" \
+            -logFile /dev/stdout || true
 
-      # Step 4: Build Android APK and AAB (ignore license errors)
       - name: Build Android APK and AAB
         run: |
-          set +e  # ignore errors so license doesn't fail the workflow
-          unity-editor \
-            -batchmode \
-            -nographics \
-            -quit \
+          unity-editor -batchmode -nographics -quit \
             -projectPath . \
             -buildTarget Android \
             -executeMethod BuildScript.BuildAndroid \
             -logFile /dev/stdout \
             -noUpm
-          set -e
 
-      # Step 5: Debug - list build folder
       - name: List Build Folder
         run: ls -la Builds/
 
-      # Step 6: Upload Build Artifacts
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Android-Build
           path: Builds/
 
-      # Step 7: Send Slack Notification
       - name: Send Slack Notification
         if: success()
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data "{
-            \"text\": \"✅ Unity Android Build Success (License Skipped)!\nRepo: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nArtifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            \"text\": \"✅ Unity Android Build Success!\nRepo: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nArtifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
           }" ${{ secrets.SLACK_WEBHOOK_URL }}
