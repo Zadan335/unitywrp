@@ -9,7 +9,6 @@ public class BuildScript
         if (!Directory.Exists(buildPath))
             Directory.CreateDirectory(buildPath);
 
-        // Use the existing scene
         string[] scenes = new[] { "Assets/Scenes/SampleScene.unity" };
 
         BuildPlayerOptions options = new BuildPlayerOptions
