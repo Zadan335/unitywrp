@@ -14,22 +14,26 @@ jobs:
       image: unityci/editor:ubuntu-2022.3.59f1-android-3.1.0
 
     steps:
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Step 2: Decode Android Keystore
       - name: Decode Android Keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > release.keystore
 
+      # Step 3: Set Android Keystore environment variables
       - name: Set Android Keystore Env Vars
         run: |
           echo "ANDROID_KEYSTORE_PASS=${{ secrets.ANDROID_KEYSTORE_PASS }}" >> $GITHUB_ENV
           echo "ANDROID_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> $GITHUB_ENV
           echo "ANDROID_KEY_ALIAS_PASS=${{ secrets.ANDROID_KEY_ALIAS_PASS }}" >> $GITHUB_ENV
 
-      - name: Build Android APK and AAB (ignore license errors)
+      # Step 4: Build Android APK and AAB (ignore license errors)
+      - name: Build Android APK and AAB
         run: |
-          set +e  # <-- ignore errors so license doesn't fail the workflow
+          set +e  # ignore errors so license doesn't fail the workflow
           unity-editor \
             -batchmode \
             -nographics \
@@ -41,12 +45,18 @@ jobs:
             -noUpm
           set -e
 
+      # Step 5: Debug - list build folder
+      - name: List Build Folder
+        run: ls -la Builds/
+
+      # Step 6: Upload Build Artifacts
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Android-Build
           path: Builds/
 
+      # Step 7: Send Slack Notification
       - name: Send Slack Notification
         if: success()
         run: |
