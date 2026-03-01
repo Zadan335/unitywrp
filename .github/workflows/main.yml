@@ -6,9 +6,8 @@ on:
       - main
   workflow_dispatch:
 
-
 concurrency:
-  group: unity-android-${{ github.ref }}
+  group: android-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -28,63 +27,58 @@ jobs:
       ANDROID_KEY_ALIAS_PASS: ${{ secrets.ANDROID_KEY_ALIAS_PASS }}
 
     steps:
-      # -------------------------
-      # Checkout
-      # -------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # -------------------------
-      # Validate Required Secrets
-      # -------------------------
-      - name: Validate Required Secrets
+      - name: Check required secrets
         run: |
-          set -e
           if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ] || [ -z "$UNITY_SERIAL" ]; then
-            echo "Unity credentials missing!"
+            echo "Missing Unity credentials"
             exit 1
           fi
 
           if [ -z "${{ secrets.ANDROID_KEYSTORE }}" ]; then
-            echo "ANDROID_KEYSTORE secret missing!"
+            echo "Missing Android keystore secret"
             exit 1
           fi
 
-      # -------------------------
-      # Cache Unity Library + Packages
-      # -------------------------
-      - name: Cache Unity Library and Packages
+      - name: Cache Unity folders
         uses: actions/cache@v3
         with:
           path: |
             Library
             Packages
-          key: unity-cache-${{ runner.os }}-${{ hashFiles('Packages/manifest.json') }}
+          key: unity-${{ runner.os }}-${{ hashFiles('Packages/manifest.json') }}
           restore-keys: |
-            unity-cache-${{ runner.os }}-
+            unity-${{ runner.os }}-
 
-      - name: Decode Android Keystore
+      - name: Cache Gradle
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Prepare Android keystore
         run: |
-          set -e
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > release.keystore
           if [ ! -f release.keystore ]; then
-            echo "Keystore decoding failed!"
+            echo "Failed to decode keystore"
             exit 1
           fi
 
-      - name: Activate Unity License
+      - name: Activate Unity license
         run: |
-          set -e
           unity-editor -batchmode -nographics -quit \
             -username "$UNITY_EMAIL" \
             -password "$UNITY_PASSWORD" \
             -serial "$UNITY_SERIAL" \
             -logFile unity-license.log
 
-
-      - name: Build Android APK and AAB
+      - name: Build Android (APK + AAB)
         run: |
-          set -e
           unity-editor -batchmode -nographics -quit \
             -projectPath . \
             -buildTarget Android \
@@ -92,59 +86,52 @@ jobs:
             -logFile unity-build.log \
             -noUpm
 
-
-      - name: Print Unity License Log
+      - name: Output license log
         if: always()
-        run: |
-          echo "================ LICENSE LOG ================"
-          cat unity-license.log || echo "No license log found"
+        run: cat unity-license.log || echo "No license log found"
 
-    
-      - name: Verify Build Output
+      - name: Verify build outputs
         run: |
-          set -e
           if [ ! -d "Builds" ]; then
-            echo " Builds directory not found!"
+            echo "Builds folder not found"
             exit 1
           fi
 
-          if ! ls Builds/*.apk 1> /dev/null 2>&1; then
-            echo " APK not generated!"
+          if ! ls Builds/*.apk >/dev/null 2>&1; then
+            echo "APK not generated"
             exit 1
           fi
 
-          if ! ls Builds/*.aab 1> /dev/null 2>&1; then
-            echo "AAB not generated!"
+          if ! ls Builds/*.aab >/dev/null 2>&1; then
+            echo "AAB not generated"
             exit 1
           fi
 
-          echo " APK and AAB successfully generated."
-          
-      - name: Upload Build Artifacts
+          echo "Android build completed successfully"
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Android-Build
+          name: android-build
           path: Builds/
 
-
-      - name: Send Slack Success Notification
+      - name: Notify Slack (success)
         if: success()
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data "{
-            \"text\": \"*Unity Android Build SUCCESS* \nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nArtifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            \"text\": \"Unity Android build succeeded\nRepo: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
           }" ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      - name: Send Slack Failure Notification
+      - name: Notify Slack (failure)
         if: failure()
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data "{
-            \"text\": \"*Unity Android Build FAILED* \nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nCheck logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            \"text\": \"Unity Android build failed\nRepo: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nLogs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
           }" ${{ secrets.SLACK_WEBHOOK_URL }}
 
-
-      - name: Return Unity License
+      - name: Return Unity license
         if: always()
         run: |
           unity-editor -batchmode -nographics -quit \
