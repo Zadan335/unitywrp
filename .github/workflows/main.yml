@@ -51,16 +51,7 @@ jobs:
           restore-keys: |
             unity-${{ runner.os }}-
 
-      - name: Cache Gradle
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-
+    
       - name: Prepare Android keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > release.keystore
