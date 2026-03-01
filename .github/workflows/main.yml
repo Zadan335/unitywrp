@@ -1,4 +1,4 @@
-name: Unity Android CI (Personal License Hardcoded)
+name: Unity Android CI 
 
 on:
   push:
@@ -25,6 +25,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate Required Secrets
+        run: |
+          set -e
+          if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ] || [ -z "$UNITY_SERIAL" ]; then
+            echo "❌ Unity credentials missing!"
+            exit 1
+          fi
+
       - name: Cache Unity Library and Packages
         uses: actions/cache@v3
         with:
@@ -35,27 +43,71 @@ jobs:
 
       - name: Decode Android Keystore
         run: |
+          set -e
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > release.keystore
 
+      # -------------------------
+      # Activate License (Log to file)
+      # -------------------------
       - name: Activate Unity License
         run: |
+          set -e
           unity-editor -batchmode -nographics -quit \
             -username "$UNITY_EMAIL" \
             -password "$UNITY_PASSWORD" \
             -serial "$UNITY_SERIAL" \
-            -logFile /dev/stdout || true
+            -logFile unity-license.log
 
+      # -------------------------
+      # Build (Log to file)
+      # -------------------------
       - name: Build Android APK and AAB
         run: |
+          set -e
           unity-editor -batchmode -nographics -quit \
             -projectPath . \
             -buildTarget Android \
             -executeMethod BuildScript.BuildAndroid \
-            -logFile /dev/stdout \
+            -logFile unity-build.log \
             -noUpm
 
-      - name: List Build Folder
-        run: ls -la Builds/
+      # -------------------------
+      # Always Print Logs (SUCCESS OR FAILURE)
+      # -------------------------
+      - name: Print Unity License Log
+        if: always()
+        run: |
+          echo "================ LICENSE LOG ================"
+          cat unity-license.log || echo "No license log found"
+
+      - name: Print Unity Build Log
+        if: always()
+        run: |
+          echo "================ BUILD LOG ================"
+          cat unity-build.log || echo "No build log found"
+
+      # -------------------------
+      # Verify Build Output
+      # -------------------------
+      - name: Verify Build Output
+        run: |
+          set -e
+          if [ ! -d "Builds" ]; then
+            echo "❌ Builds directory not found!"
+            exit 1
+          fi
+
+          if ! ls Builds/*.apk 1> /dev/null 2>&1; then
+            echo "❌ APK not generated!"
+            exit 1
+          fi
+
+          if ! ls Builds/*.aab 1> /dev/null 2>&1; then
+            echo "❌ AAB not generated!"
+            exit 1
+          fi
+
+          echo "✅ APK and AAB successfully generated."
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -63,10 +115,18 @@ jobs:
           name: Android-Build
           path: Builds/
 
-      - name: Send Slack Notification
+      - name: Send Slack Success Notification
         if: success()
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data "{
-            \"text\": \"✅ Unity Android Build Success!\nRepo: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nArtifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            \"text\": \"✅ *Unity Android Build SUCCESS* 🚀\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nArtifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+          }" ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send Slack Failure Notification
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"text\": \"❌ *Unity Android Build FAILED* 💥\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nCheck logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
           }" ${{ secrets.SLACK_WEBHOOK_URL }}
