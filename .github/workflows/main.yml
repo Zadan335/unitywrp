@@ -6,7 +6,7 @@ on:
       - main
   workflow_dispatch:
 
-# Prevent multiple builds running on same branch
+
 concurrency:
   group: unity-android-${{ github.ref }}
   cancel-in-progress: true
@@ -41,12 +41,12 @@ jobs:
         run: |
           set -e
           if [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ] || [ -z "$UNITY_SERIAL" ]; then
-            echo "❌ Unity credentials missing!"
+            echo "Unity credentials missing!"
             exit 1
           fi
 
           if [ -z "${{ secrets.ANDROID_KEYSTORE }}" ]; then
-            echo "❌ ANDROID_KEYSTORE secret missing!"
+            echo "ANDROID_KEYSTORE secret missing!"
             exit 1
           fi
 
@@ -63,34 +63,15 @@ jobs:
           restore-keys: |
             unity-cache-${{ runner.os }}-
 
-      # -------------------------
-      # Cache Gradle (BIG speed boost)
-      # -------------------------
-      - name: Cache Gradle
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-
-      # -------------------------
-      # Decode Android Keystore
-      # -------------------------
       - name: Decode Android Keystore
         run: |
           set -e
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > release.keystore
           if [ ! -f release.keystore ]; then
-            echo "❌ Keystore decoding failed!"
+            echo "Keystore decoding failed!"
             exit 1
           fi
 
-      # -------------------------
-      # Activate Unity License
-      # -------------------------
       - name: Activate Unity License
         run: |
           set -e
@@ -100,9 +81,7 @@ jobs:
             -serial "$UNITY_SERIAL" \
             -logFile unity-license.log
 
-      # -------------------------
-      # Build Android APK and AAB
-      # -------------------------
+
       - name: Build Android APK and AAB
         run: |
           set -e
@@ -113,74 +92,58 @@ jobs:
             -logFile unity-build.log \
             -noUpm
 
-      # -------------------------
-      # Always Print Logs (SUCCESS OR FAILURE)
-      # -------------------------
+
       - name: Print Unity License Log
         if: always()
         run: |
           echo "================ LICENSE LOG ================"
           cat unity-license.log || echo "No license log found"
 
-     
-
-      # -------------------------
-      # Verify Build Output
-      # -------------------------
+    
       - name: Verify Build Output
         run: |
           set -e
           if [ ! -d "Builds" ]; then
-            echo "❌ Builds directory not found!"
+            echo " Builds directory not found!"
             exit 1
           fi
 
           if ! ls Builds/*.apk 1> /dev/null 2>&1; then
-            echo "❌ APK not generated!"
+            echo " APK not generated!"
             exit 1
           fi
 
           if ! ls Builds/*.aab 1> /dev/null 2>&1; then
-            echo "❌ AAB not generated!"
+            echo "AAB not generated!"
             exit 1
           fi
 
-          echo "✅ APK and AAB successfully generated."
-
-      # -------------------------
-      # Upload Artifacts
-      # -------------------------
+          echo " APK and AAB successfully generated."
+          
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Android-Build
           path: Builds/
 
-      # -------------------------
-      # Slack Success Notification
-      # -------------------------
+
       - name: Send Slack Success Notification
         if: success()
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data "{
-            \"text\": \"✅ *Unity Android Build SUCCESS* 🚀\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nArtifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            \"text\": \"*Unity Android Build SUCCESS* \nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nArtifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
           }" ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # -------------------------
-      # Slack Failure Notification
-      # -------------------------
       - name: Send Slack Failure Notification
         if: failure()
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data "{
-            \"text\": \"❌ *Unity Android Build FAILED* 💥\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nCheck logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            \"text\": \"*Unity Android Build FAILED* \nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nCheck logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
           }" ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # -------------------------
-      # Return Unity License (Cleanup)
-      # -------------------------
+
       - name: Return Unity License
         if: always()
         run: |
