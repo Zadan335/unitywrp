@@ -14,9 +14,9 @@ jobs:
       image: unityci/editor:ubuntu-2022.3.59f1-android-3.1.0
 
     env:
-      UNITY_EMAIL: "zainali.fastian1234@gmail.com"      # hardcoded for test
-      UNITY_PASSWORD: "Zadaniphone@123"             # hardcoded for test
-      UNITY_SERIAL: "F4-7ESQ-KRGX-Z7Y5-HZCG-6BP6" # hardcoded for test
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+      UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
       ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_ALIAS_PASS: ${{ secrets.ANDROID_KEY_ALIAS_PASS }}
@@ -24,6 +24,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Cache Unity Library and Packages
+        uses: actions/cache@v3
+        with:
+          path: |
+            Library
+            Packages
+          key: unity-cache-${{ runner.os }}-${{ hashFiles('Packages/manifest.json') }}
 
       - name: Decode Android Keystore
         run: |
