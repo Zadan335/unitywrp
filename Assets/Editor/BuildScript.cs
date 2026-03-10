@@ -10,6 +10,10 @@ public class BuildScript
         if (string.IsNullOrEmpty(buildType))
             buildType = "both";
 
+        buildType = buildType.Trim().ToLower();
+
+        UnityEngine.Debug.Log("BUILD TYPE: " + buildType);
+
         string buildPath = "Builds";
 
         if (!Directory.Exists(buildPath))
@@ -24,21 +28,21 @@ public class BuildScript
             options = BuildOptions.None
         };
 
-        // Build APK
         if (buildType == "apk" || buildType == "both")
         {
-            EditorUserBuildSettings.buildAppBundle = false;
+            UnityEngine.Debug.Log("Building APK");
 
+            EditorUserBuildSettings.buildAppBundle = false;
             options.locationPathName = buildPath + "/app.apk";
 
             BuildPipeline.BuildPlayer(options);
         }
 
-        // Build AAB
         if (buildType == "aab" || buildType == "both")
         {
-            EditorUserBuildSettings.buildAppBundle = true;
+            UnityEngine.Debug.Log("Building AAB");
 
+            EditorUserBuildSettings.buildAppBundle = true;
             options.locationPathName = buildPath + "/app.aab";
 
             BuildPipeline.BuildPlayer(options);
