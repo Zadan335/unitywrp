@@ -5,7 +5,13 @@ public class BuildScript
 {
     public static void BuildAndroid()
     {
+        string buildType = GetArgument("-buildType");
+
+        if (string.IsNullOrEmpty(buildType))
+            buildType = "both";
+
         string buildPath = "Builds";
+
         if (!Directory.Exists(buildPath))
             Directory.CreateDirectory(buildPath);
 
@@ -19,13 +25,36 @@ public class BuildScript
         };
 
         // Build APK
-        EditorUserBuildSettings.buildAppBundle = false;
-        options.locationPathName = buildPath + "/app.apk";
-        BuildPipeline.BuildPlayer(options);
+        if (buildType == "apk" || buildType == "both")
+        {
+            EditorUserBuildSettings.buildAppBundle = false;
+
+            options.locationPathName = buildPath + "/app.apk";
+
+            BuildPipeline.BuildPlayer(options);
+        }
 
         // Build AAB
-        EditorUserBuildSettings.buildAppBundle = true;
-        options.locationPathName = buildPath + "/app.aab";
-        BuildPipeline.BuildPlayer(options);
+        if (buildType == "aab" || buildType == "both")
+        {
+            EditorUserBuildSettings.buildAppBundle = true;
+
+            options.locationPathName = buildPath + "/app.aab";
+
+            BuildPipeline.BuildPlayer(options);
+        }
+    }
+
+    static string GetArgument(string name)
+    {
+        var args = System.Environment.GetCommandLineArgs();
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == name && i + 1 < args.Length)
+                return args[i + 1];
+        }
+
+        return null;
     }
 }
